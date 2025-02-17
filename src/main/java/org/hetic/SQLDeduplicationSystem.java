@@ -11,7 +11,7 @@ import java.security.NoSuchAlgorithmException;
 
 public class SQLDeduplicationSystem extends DeduplicationSystem {
     private final HikariDataSource dataSource;
-    private static final String STORAGE_BASE_PATH = "/storage";
+    private static final String STORAGE_BASE_PATH = "storage";
 
     public SQLDeduplicationSystem(String algorithmName) throws NoSuchAlgorithmException {
         super(algorithmName);
