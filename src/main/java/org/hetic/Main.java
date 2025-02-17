@@ -1,33 +1,36 @@
 package org.hetic;
 
+import java.nio.file.*;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.security.NoSuchAlgorithmException;
-import java.util.Arrays;
 
 public class Main {
     private static final int CHUNK_SIZE = 20 * 1024; // 1MB par chunk
 
     public static void main(String[] args) {
         try {
-            // Initialiser le système de déduplication avec PostgreSQL
+            // 1. Initialiser le système
             SQLDeduplicationSystem deduplicationSystem = new SQLDeduplicationSystem("SHA-256");
+            FileReconstructor reconstructor = new FileReconstructor(deduplicationSystem);
             
-            // Dossier à analyser
+            // 2. Traiter les fichiers
             String folderPath = "data-files";
+            System.out.println("Traitement des fichiers...\n");
             processFolder(deduplicationSystem, folderPath);
+            
+            // 3. Afficher les statistiques de déduplication
             deduplicationSystem.printChunkDetails();
-            // Afficher les statistiques
             DeduplicationStats stats = deduplicationSystem.calculateDetailedStats();
             System.out.println(stats.toString());
-            
-            // Afficher l'historique des 5 dernières analyses
-            // System.out.println("\nHistorique des analyses :");
-            // deduplicationSystem.getHistoricalStats(5).forEach(historicalStats -> 
-            //     System.out.println("- " + historicalStats.toString())
-            // );
+
+            // 4. Afficher les fichiers disponibles pour reconstruction
+            System.out.println("\nListe des fichiers disponibles pour reconstruction :");
+            reconstructor.listAvailableFiles();
+
+            // 5. Reconstruire un fichier spécifique
+            String fileToReconstruct = "calendrier (1).pdf";
+            System.out.println("\nReconstruction du fichier : " + fileToReconstruct);
+            reconstructor.reconstructFile(fileToReconstruct);
             
         } catch (NoSuchAlgorithmException e) {
             System.err.println("Erreur d'algorithme de hachage : " + e.getMessage());
@@ -36,7 +39,7 @@ public class Main {
             e.printStackTrace();
         }
     }
-    
+
     private static void processFolder(SQLDeduplicationSystem deduplicationSystem, String folderPath) {
         try {
             Files.walk(Paths.get(folderPath))
@@ -46,27 +49,27 @@ public class Main {
             System.err.println("Erreur lors du parcours du dossier : " + e.getMessage());
         }
     }
-    
+
     private static void processFile(SQLDeduplicationSystem deduplicationSystem, Path filePath) {
         try {
             byte[] fileContent = Files.readAllBytes(filePath);
             String fileName = filePath.getFileName().toString();
-            
+
             // Découper le fichier en chunks
             for (int i = 0; i < fileContent.length; i += CHUNK_SIZE) {
                 int chunkSize = Math.min(CHUNK_SIZE, fileContent.length - i);
-                byte[] chunk = Arrays.copyOfRange(fileContent, i, i + chunkSize);
-                
-                // Ajouter le chunk au système de déduplication
+                byte[] chunk = new byte[chunkSize];
+                System.arraycopy(fileContent, i, chunk, 0, chunkSize);
+
+                // Ajouter le chunk au système
                 String location = fileName + "_chunk_" + (i / CHUNK_SIZE);
                 deduplicationSystem.addChunk(chunk, location);
             }
-            
+
             System.out.println("Traitement terminé pour : " + fileName);
-            
+
         } catch (IOException e) {
             System.err.println("Erreur lors du traitement du fichier " + filePath + " : " + e.getMessage());
         }
     }
- 
 }

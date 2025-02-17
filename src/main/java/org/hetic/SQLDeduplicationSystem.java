@@ -3,6 +3,9 @@ package org.hetic;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import java.sql.*;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.NoSuchAlgorithmException;
 
@@ -15,6 +18,7 @@ public class SQLDeduplicationSystem extends DeduplicationSystem {
         this.dataSource = setupDataSource();
         initializeDatabase();
         resetDatabase();
+        initializeStorage();
     }
 
     private HikariDataSource setupDataSource() {
@@ -70,6 +74,39 @@ public class SQLDeduplicationSystem extends DeduplicationSystem {
    private String generateStoragePath(String hash) {
         return Paths.get(STORAGE_BASE_PATH, hash).toString();
     }
+    
+    public Connection getConnection() throws SQLException {
+        return dataSource.getConnection();
+    }
+
+private void initializeStorage() {
+        try {
+            Path storagePath = Paths.get(STORAGE_BASE_PATH);
+            if (Files.exists(storagePath)) {
+                // Nettoyer le dossier de stockage existant
+                Files.walk(storagePath)
+                     .sorted((a, b) -> b.compareTo(a))
+                     .forEach(path -> {
+                         try {
+                             Files.delete(path);
+                         } catch (IOException e) {
+                             System.err.println("Erreur lors de la suppression de " + path);
+                         }
+                     });
+            }
+            Files.createDirectories(storagePath);
+            System.out.println("Dossier de stockage initialisé : " + storagePath.toAbsolutePath());
+        } catch (IOException e) {
+            throw new RuntimeException("Erreur lors de l'initialisation du stockage", e);
+        }
+    }
+
+    private void saveChunkToStorage(byte[] chunk, String storagePath) throws IOException {
+        Path path = Paths.get(storagePath);
+        Files.createDirectories(path.getParent());
+        Files.write(path, chunk);
+        System.out.println("Chunk sauvegardé : " + path.toAbsolutePath());
+    }
 
     @Override
     public ChunkMetadata addChunk(byte[] chunk, String location) {
@@ -98,8 +135,12 @@ public class SQLDeduplicationSystem extends DeduplicationSystem {
                         insertChunkStmt.setString(2, storagePath);
                         insertChunkStmt.executeUpdate();
                         
-                        // Ici, vous pourriez ajouter le code pour sauvegarder physiquement le chunk
-                        // saveChunkToStorage(chunk, storagePath);
+                        // Sauvegarder physiquement le chunk
+                        try {
+                            saveChunkToStorage(chunk, storagePath);
+                        } catch (IOException e) {
+                            throw new SQLException("Erreur lors de la sauvegarde physique du chunk", e);
+                        }
                     }
                 }
 
