@@ -109,10 +109,8 @@ private void initializeStorage() {
     }
 
     @Override
-    public ChunkMetadata addChunk(byte[] chunk, String location) {
+    public ChunkMetadata addChunk(byte[] chunk, String filename, int chunkNumber) {
         String hash = calculateHash(chunk);
-        String filename = location.substring(0, location.lastIndexOf("_chunk_"));
-        int chunkNumber = Integer.parseInt(location.substring(location.lastIndexOf("_") + 1));
         String storagePath = generateStoragePath(hash);
         
         try (Connection conn = dataSource.getConnection()) {
@@ -164,6 +162,14 @@ private void initializeStorage() {
         } catch (SQLException e) {
             throw new RuntimeException("Erreur lors de l'ajout du chunk", e);
         }
+    }
+
+    // Pour la compatibilité avec l'ancien code si nécessaire
+    @Deprecated
+    public ChunkMetadata addChunkLegacy(byte[] chunk, String location) {
+        String filename = location.substring(0, location.lastIndexOf("_chunk_"));
+        int chunkNumber = Integer.parseInt(location.substring(location.lastIndexOf("_") + 1));
+        return addChunk(chunk, filename, chunkNumber);
     }
 
     // Méthode pour afficher les détails incluant le chemin de stockage

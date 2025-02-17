@@ -1,5 +1,4 @@
 import org.junit.jupiter.api.*;
-import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.*;
 import java.io.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -11,9 +10,6 @@ public class FileReconstructorTest {
     private FileReconstructor fileReconstructor;
     private static final String TEST_FILENAME = "test.txt";
     
-    @TempDir
-    Path tempDir;
-
     @BeforeEach
     void setUp() throws Exception {
         deduplicationSystem = new SQLDeduplicationSystem("SHA-256");
@@ -27,30 +23,32 @@ public class FileReconstructorTest {
         byte[] content = originalContent.getBytes();
         
         // Ajouter comme un chunk
-        deduplicationSystem.addChunk(content, TEST_FILENAME + "_chunk_0");
+        deduplicationSystem.addChunk(content, TEST_FILENAME, 0);
 
         // Reconstruire le fichier
         fileReconstructor.reconstructFile(TEST_FILENAME);
 
         // Vérifier le fichier reconstruit
         Path reconstructedPath = Paths.get("reconstructed", "reconstructed_" + TEST_FILENAME);
-        assertTrue(Files.exists(reconstructedPath));
+        assertTrue(Files.exists(reconstructedPath), "Le fichier reconstruit devrait exister");
         
         String reconstructedContent = Files.readString(reconstructedPath);
-        assertEquals(originalContent, reconstructedContent);
+        assertEquals(originalContent, reconstructedContent, "Le contenu reconstruit devrait être identique");
     }
 
     @Test
     void testMultiChunkReconstruction() throws IOException {
-        // Créer plusieurs chunks
-        String chunk1 = "Première partie ";
-        String chunk2 = "Deuxième partie ";
-        String chunk3 = "Troisième partie";
+        // Simuler un fichier en plusieurs chunks
+        String[] chunks = {
+            "Première partie ",
+            "Deuxième partie ",
+            "Troisième partie"
+        };
 
         // Ajouter les chunks
-        deduplicationSystem.addChunk(chunk1.getBytes(), TEST_FILENAME + "_chunk_0");
-        deduplicationSystem.addChunk(chunk2.getBytes(), TEST_FILENAME + "_chunk_1");
-        deduplicationSystem.addChunk(chunk3.getBytes(), TEST_FILENAME + "_chunk_2");
+        for (int i = 0; i < chunks.length; i++) {
+            deduplicationSystem.addChunk(chunks[i].getBytes(), TEST_FILENAME, i);
+        }
 
         // Reconstruire le fichier
         fileReconstructor.reconstructFile(TEST_FILENAME);
@@ -58,54 +56,57 @@ public class FileReconstructorTest {
         // Vérifier le résultat
         Path reconstructedPath = Paths.get("reconstructed", "reconstructed_" + TEST_FILENAME);
         String reconstructedContent = Files.readString(reconstructedPath);
-        assertEquals(chunk1 + chunk2 + chunk3, reconstructedContent);
+        String expectedContent = String.join("", chunks);
+        
+        assertEquals(expectedContent, reconstructedContent, 
+            "Le fichier reconstruit devrait contenir tous les chunks dans l'ordre");
     }
 
     @Test
     void testNonExistentFile() {
-        // Tenter de reconstruire un fichier inexistant
         Exception exception = assertThrows(IllegalArgumentException.class, () -> {
             fileReconstructor.reconstructFile("nonexistent.txt");
         });
 
-        assertTrue(exception.getMessage().contains("Fichier non trouvé"));
+        assertTrue(exception.getMessage().contains("Fichier non trouvé"), 
+            "Devrait lever une exception pour un fichier inexistant");
     }
 
     @Test
     void testListAvailableFiles() throws IOException {
         // Ajouter quelques fichiers de test
-        deduplicationSystem.addChunk("Test1".getBytes(), "file1.txt_chunk_0");
-        deduplicationSystem.addChunk("Test2".getBytes(), "file2.txt_chunk_0");
+        deduplicationSystem.addChunk("Test1".getBytes(), "file1.txt", 0);
+        deduplicationSystem.addChunk("Test2".getBytes(), "file2.txt", 0);
 
-        // Vérifier la liste des fichiers disponibles
-        final boolean[] fileFound = {false};
-        
-        // Rediriger System.out pour capturer la sortie
+        // Capturer la sortie standard
         ByteArrayOutputStream outContent = new ByteArrayOutputStream();
-        try (PrintStream originalOut = System.out;
-             PrintStream capturedOut = new PrintStream(outContent)) {
-            
-            System.setOut(capturedOut);
-            fileReconstructor.listAvailableFiles();
-            System.setOut(originalOut);
-            
-            String output = outContent.toString();
-            assertTrue(output.contains("file1.txt"));
-            assertTrue(output.contains("file2.txt"));
-        }
+        PrintStream originalOut = System.out;
+        System.setOut(new PrintStream(outContent));
+
+        fileReconstructor.listAvailableFiles();
+
+        // Restaurer la sortie standard
+        System.setOut(originalOut);
+
+        String output = outContent.toString();
+        assertTrue(output.contains("file1.txt"), "Devrait lister le premier fichier");
+        assertTrue(output.contains("file2.txt"), "Devrait lister le deuxième fichier");
     }
 
     @AfterEach
     void tearDown() throws Exception {
-        // Nettoyage des fichiers temporaires
-        Files.walk(Paths.get("reconstructed"))
-             .sorted((a, b) -> b.compareTo(a))
-             .forEach(path -> {
-                 try {
-                     Files.deleteIfExists(path);
-                 } catch (IOException e) {
-                     e.printStackTrace();
-                 }
-             });
+        // Nettoyer les fichiers reconstruits
+        Path reconstructedDir = Paths.get("reconstructed");
+        if (Files.exists(reconstructedDir)) {
+            Files.walk(reconstructedDir)
+                 .sorted((a, b) -> b.compareTo(a))
+                 .forEach(path -> {
+                     try {
+                         Files.delete(path);
+                     } catch (IOException e) {
+                         System.err.println("Erreur lors du nettoyage: " + e.getMessage());
+                     }
+                 });
+        }
     }
 }

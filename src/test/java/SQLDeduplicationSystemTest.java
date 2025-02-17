@@ -1,5 +1,4 @@
 import org.junit.jupiter.api.*;
-import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.*;
 import java.io.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -12,10 +11,8 @@ public class SQLDeduplicationSystemTest {
     private SQLDeduplicationSystem deduplicationSystem;
     private static final String TEST_CONTENT_1 = "Contenu de test 1";
     private static final String TEST_CONTENT_2 = "Contenu de test 2";
+    private static final String TEST_FILENAME = "test.txt";
     
-    @TempDir
-    Path tempDir;
-
     @BeforeEach
     void setUp() throws Exception {
         deduplicationSystem = new SQLDeduplicationSystem("SHA-256");
@@ -25,29 +22,24 @@ public class SQLDeduplicationSystemTest {
     void testAddUniqueChunk() {
         // Créer un chunk de test
         byte[] chunk = TEST_CONTENT_1.getBytes();
-        String location = "test.txt_chunk_0";
 
         // Ajouter le chunk
-        ChunkMetadata metadata = deduplicationSystem.addChunk(chunk, location);
+        ChunkMetadata metadata = deduplicationSystem.addChunk(chunk, TEST_FILENAME, 0);
 
         // Vérifications
         assertNotNull(metadata, "Le metadata ne devrait pas être null");
-        assertNotNull(metadata.getHash(), "Le hash ne devrait pas être null");
-        assertTrue(metadata.getHash().length() > 0, "Le hash devrait avoir une longueur > 0");
-        assertEquals(chunk.length, metadata.getSize(), "La taille du chunk devrait correspondre");
-        
-        // Vérifier que le chemin existe
-        Path storagePath = Paths.get(metadata.getLocation());
-        assertTrue(storagePath.toString().contains("storage"), 
-            "Le chemin devrait contenir 'storage': " + storagePath);
+        assertTrue(metadata.getHash().length() > 0, "Le hash devrait être généré");
+        assertEquals(chunk.length, metadata.getSize(), "La taille devrait correspondre");
+        assertTrue(metadata.getLocation().contains("storage"), 
+            "Le chemin devrait contenir 'storage': " + metadata.getLocation());
     }
 
     @Test
     void testAddDuplicateChunk() {
         // Ajouter le même contenu deux fois
         byte[] chunk = TEST_CONTENT_1.getBytes();
-        ChunkMetadata metadata1 = deduplicationSystem.addChunk(chunk, "test1.txt_chunk_0");
-        ChunkMetadata metadata2 = deduplicationSystem.addChunk(chunk, "test2.txt_chunk_0");
+        ChunkMetadata metadata1 = deduplicationSystem.addChunk(chunk, "file1.txt", 0);
+        ChunkMetadata metadata2 = deduplicationSystem.addChunk(chunk, "file2.txt", 0);
 
         // Vérifier que les hashs sont identiques
         assertEquals(metadata1.getHash(), metadata2.getHash(), 
@@ -57,40 +49,75 @@ public class SQLDeduplicationSystemTest {
     }
 
     @Test
-    void testCalculateStats() {
-        // Ajouter des chunks uniques et dupliqués
+    void testMultipleChunks() {
+        // Tester l'ajout de plusieurs chunks pour le même fichier
         byte[] chunk1 = TEST_CONTENT_1.getBytes();
         byte[] chunk2 = TEST_CONTENT_2.getBytes();
 
-        deduplicationSystem.addChunk(chunk1, "file1_chunk_0");
-        deduplicationSystem.addChunk(chunk1, "file2_chunk_0"); // Doublon
-        deduplicationSystem.addChunk(chunk2, "file3_chunk_0");
+        ChunkMetadata metadata1 = deduplicationSystem.addChunk(chunk1, TEST_FILENAME, 0);
+        ChunkMetadata metadata2 = deduplicationSystem.addChunk(chunk2, TEST_FILENAME, 1);
 
-        // Calculer les statistiques
-        DeduplicationStats stats = deduplicationSystem.calculateDetailedStats();
-
-        // Vérifications
-        assertEquals(3, stats.totalChunks(), "Nombre total de chunks incorrect");
-        assertEquals(2, stats.uniqueChunks(), "Nombre de chunks uniques incorrect");
-        assertEquals(1, stats.duplicateChunks(), "Nombre de chunks dupliqués incorrect");
-        assertTrue(stats.deduplicationRatio() > 0, "Le taux de déduplication devrait être > 0");
+        assertNotEquals(metadata1.getHash(), metadata2.getHash(), 
+            "Les hashs devraient être différents pour des contenus différents");
     }
 
     @Test
     void testPhysicalStorage() throws IOException {
         // Créer un chunk et vérifier son stockage physique
         byte[] chunk = TEST_CONTENT_1.getBytes();
-        ChunkMetadata metadata = deduplicationSystem.addChunk(chunk, "test.txt_chunk_0");
+        ChunkMetadata metadata = deduplicationSystem.addChunk(chunk, TEST_FILENAME, 0);
 
         // Vérifier que le fichier existe
         Path storagePath = Paths.get(metadata.getLocation());
         assertTrue(Files.exists(storagePath), 
-            "Le fichier devrait exister: " + storagePath);
+            "Le fichier devrait exister dans le stockage");
 
         // Vérifier le contenu
         byte[] storedContent = Files.readAllBytes(storagePath);
         assertArrayEquals(chunk, storedContent, 
             "Le contenu stocké devrait être identique au chunk original");
+    }
+
+    @Test
+    void testStatisticsWithDuplicates() {
+        // Ajouter des chunks avec des doublons
+        byte[] chunk1 = TEST_CONTENT_1.getBytes();
+        byte[] chunk2 = TEST_CONTENT_2.getBytes();
+
+        // Même contenu, fichiers différents
+        deduplicationSystem.addChunk(chunk1, "file1.txt", 0);
+        deduplicationSystem.addChunk(chunk1, "file2.txt", 0);
+        deduplicationSystem.addChunk(chunk2, "file3.txt", 0);
+
+        DeduplicationStats stats = deduplicationSystem.calculateDetailedStats();
+
+        assertEquals(3, stats.totalChunks(), "Nombre total de chunks incorrect");
+        assertEquals(2, stats.uniqueChunks(), "Nombre de chunks uniques incorrect");
+        assertEquals(1, stats.duplicateChunks(), "Nombre de chunks dupliqués incorrect");
+        assertTrue(stats.deduplicationRatio() > 0, "Le taux de déduplication devrait être positif");
+    }
+
+    @Test
+    void testChunkDetails() {
+        // Ajouter des chunks pour tester l'affichage des détails
+        byte[] chunk = TEST_CONTENT_1.getBytes();
+        deduplicationSystem.addChunk(chunk, "file1.txt", 0);
+        deduplicationSystem.addChunk(chunk, "file2.txt", 0);
+
+        // Rediriger la sortie standard pour vérification
+        ByteArrayOutputStream outContent = new ByteArrayOutputStream();
+        PrintStream originalOut = System.out;
+        System.setOut(new PrintStream(outContent));
+
+        deduplicationSystem.printChunkDetails();
+
+        // Restaurer la sortie standard
+        System.setOut(originalOut);
+
+        String output = outContent.toString();
+        assertTrue(output.contains("Hash:"), "Les détails devraient inclure le hash");
+        assertTrue(output.contains("Stockage:"), "Les détails devraient inclure le chemin de stockage");
+        assertTrue(output.contains("Références: 2"), "Les détails devraient montrer 2 références");
     }
 
     @AfterEach

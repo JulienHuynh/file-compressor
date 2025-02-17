@@ -61,9 +61,8 @@ public class Main {
                 byte[] chunk = new byte[chunkSize];
                 System.arraycopy(fileContent, i, chunk, 0, chunkSize);
 
-                // Ajouter le chunk au système
-                String location = fileName + "_chunk_" + (i / CHUNK_SIZE);
-                deduplicationSystem.addChunk(chunk, location);
+                // Ajouter directement le chunk avec le nom de fichier et le numéro
+                deduplicationSystem.addChunk(chunk, fileName, i / CHUNK_SIZE);
             }
 
             System.out.println("Traitement terminé pour : " + fileName);
