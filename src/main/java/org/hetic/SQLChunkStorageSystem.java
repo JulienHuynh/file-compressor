@@ -16,7 +16,7 @@ import static org.hetic.ChunkStorageUtils.hashChunk;
 
 public class SQLChunkStorageSystem {
     private final HikariDataSource dataSource;
-    private static final String STORAGE_BASE_PATH = "/storage";
+    private static final String STORAGE_BASE_PATH = "storage";
 
     public SQLChunkStorageSystem() {
         this.dataSource = setupDataSource();

@@ -33,7 +33,7 @@ public class CompressFile {
             reconstructor.listAvailableFiles();
 
             // 5. Reconstruire un fichier spécifique
-            String fileToReconstruct = "test.txt";
+            String fileToReconstruct = "text1.txt";
             System.out.println("\nReconstruction du fichier : " + fileToReconstruct);
             reconstructor.reconstructFile(fileToReconstruct);
 

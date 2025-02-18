@@ -28,12 +28,12 @@ public class FileReconstructor {
             try (Statement stmt = conn.createStatement()) {
                 ResultSet rs = stmt.executeQuery("""
                     SELECT DISTINCT 
-                           REGEXP_REPLACE(filename, '_chunk_\\d+$', '') as original_filename,
+                           filename as original_filename,
                            COUNT(chunk_number) as chunks,
                            MIN(created_at) as created
                     FROM file_chunks fc
                     JOIN chunks c ON fc.chunk_hash = c.chunk_hash
-                    GROUP BY REGEXP_REPLACE(filename, '_chunk_\\d+$', '')
+                    GROUP BY filename
                     ORDER BY created
                 """);
 
@@ -60,7 +60,7 @@ public class FileReconstructor {
             SELECT fc.chunk_number, c.chunk_hash, c.file_path
             FROM file_chunks fc
             JOIN chunks c ON fc.chunk_hash = c.chunk_hash
-            WHERE REGEXP_REPLACE(fc.filename, '_chunk_\\d+$', '') = ?
+            WHERE fc.filename = ?
             ORDER BY fc.chunk_number
         """)) {
             stmt.setString(1, filename);
