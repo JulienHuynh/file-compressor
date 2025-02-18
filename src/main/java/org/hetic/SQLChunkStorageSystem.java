@@ -2,8 +2,12 @@ package org.hetic;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import org.hetic.models.ChunkMetadata;
 import org.hetic.models.DeduplicationStats;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.*;
 import java.nio.file.Paths;
 import java.security.NoSuchAlgorithmException;
@@ -18,6 +22,7 @@ public class SQLChunkStorageSystem {
         this.dataSource = setupDataSource();
         initializeDatabase();
         resetDatabase();
+        initializeStorage();
     }
 
     private HikariDataSource setupDataSource() {
@@ -27,6 +32,9 @@ public class SQLChunkStorageSystem {
         config.setPassword("root");
         config.setMaximumPoolSize(10);
         return new HikariDataSource(config);
+    }
+    public Connection getConnection() throws SQLException {
+        return dataSource.getConnection();
     }
 
     private void initializeDatabase() {
@@ -74,7 +82,36 @@ public class SQLChunkStorageSystem {
         return Paths.get(STORAGE_BASE_PATH, hash).toString();
     }
 
-    public void addChunk(byte[] chunk, String filename, int chunkNumber) throws NoSuchAlgorithmException {
+    private void initializeStorage() {
+        try {
+            Path storagePath = Paths.get(STORAGE_BASE_PATH);
+            if (Files.exists(storagePath)) {
+                // Nettoyer le dossier de stockage existant
+                Files.walk(storagePath)
+                        .sorted((a, b) -> b.compareTo(a))
+                        .forEach(path -> {
+                            try {
+                                Files.delete(path);
+                            } catch (IOException e) {
+                                System.err.println("Erreur lors de la suppression de " + path);
+                            }
+                        });
+            }
+            Files.createDirectories(storagePath);
+            System.out.println("Dossier de stockage initialisé : " + storagePath.toAbsolutePath());
+        } catch (IOException e) {
+            throw new RuntimeException("Erreur lors de l'initialisation du stockage", e);
+        }
+    }
+
+    private void saveChunkToStorage(byte[] chunk, String storagePath) throws IOException {
+        Path path = Paths.get(storagePath);
+        Files.createDirectories(path.getParent());
+        Files.write(path, chunk);
+        System.out.println("Chunk sauvegardé : " + path.toAbsolutePath());
+    }
+
+    public ChunkMetadata addChunk(byte[] chunk, String filename, int chunkNumber) throws NoSuchAlgorithmException {
         String hash = hashChunk(chunk);
         String storagePath = generateStoragePath(hash);
         
@@ -97,9 +134,13 @@ public class SQLChunkStorageSystem {
                         insertChunkStmt.setString(1, hash);
                         insertChunkStmt.setString(2, storagePath);
                         insertChunkStmt.executeUpdate();
-                        
-                        // Ici, vous pourriez ajouter le code pour sauvegarder physiquement le chunk
-                        // saveChunkToStorage(chunk, storagePath);
+
+                        // Sauvegarder physiquement le chunk
+                        try {
+                            saveChunkToStorage(chunk, storagePath);
+                        } catch (IOException e) {
+                            throw new SQLException("Erreur lors de la sauvegarde physique du chunk", e);
+                        }
                     }
                 }
 
@@ -113,6 +154,7 @@ public class SQLChunkStorageSystem {
                 }
 
                 conn.commit();
+                return new ChunkMetadata(hash, chunk.length, storagePath);
             } catch (SQLException e) {
                 conn.rollback();
                 throw e;

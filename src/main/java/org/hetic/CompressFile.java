@@ -14,18 +14,29 @@ public class CompressFile {
 
     public static void main(String[] args) {
         try {
-            // Initialiser le système de déduplication avec PostgreSQL
+            // 1. Initialiser le système
             SQLChunkStorageSystem chunkStorageSystem = new SQLChunkStorageSystem();
+            FileReconstructor reconstructor = new FileReconstructor(chunkStorageSystem);
 
-            // Dossier à analyser
+            // 2. Traiter les fichiers
             String folderPath = "data-files";
+            System.out.println("Traitement des fichiers...\n");
             processFolder(chunkStorageSystem, folderPath);
 
+            // 3. Afficher les statistiques de déduplication
             chunkStorageSystem.printChunkDetails();
-
-            // Afficher les statistiques
             DeduplicationStats stats = chunkStorageSystem.calculateDetailedStats();
             System.out.println(stats.toString());
+
+            // 4. Afficher les fichiers disponibles pour reconstruction
+            System.out.println("\nListe des fichiers disponibles pour reconstruction :");
+            reconstructor.listAvailableFiles();
+
+            // 5. Reconstruire un fichier spécifique
+            String fileToReconstruct = "test.txt";
+            System.out.println("\nReconstruction du fichier : " + fileToReconstruct);
+            reconstructor.reconstructFile(fileToReconstruct);
+
         } catch (Exception e) {
             System.err.println("Erreur inattendue : " + e.getMessage());
             e.printStackTrace();
