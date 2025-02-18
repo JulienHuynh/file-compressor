@@ -22,6 +22,13 @@
             <version>42.7.1</version>
         </dependency>
 
+        <!-- ZSTD -->
+        <dependency>
+            <groupId>com.github.luben</groupId>
+            <artifactId>zstd-jni</artifactId>
+            <version>1.5.5-11</version>
+        </dependency>
+
         <!-- HikariCP -->
         <dependency>
             <groupId>com.zaxxer</groupId>

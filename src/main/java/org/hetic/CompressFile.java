@@ -14,22 +14,25 @@ public class CompressFile {
 
     public static void main(String[] args) {
         try {
-            // 1. Initialiser le système
-            SQLChunkStorageSystem chunkStorageSystem = new SQLChunkStorageSystem();
-            FileReconstructor reconstructor = new FileReconstructor(chunkStorageSystem);
+            // 1. Initialiser le système avec compression
+            CompressedChunkStorageSystem storageSystem = new CompressedChunkStorageSystem();
+            FileReconstructor reconstructor = new FileReconstructor(storageSystem);
 
             // 2. Traiter les fichiers
             String folderPath = "data-files";
             System.out.println("Traitement des fichiers...\n");
-            processFolder(chunkStorageSystem, folderPath);
+            long startTime = System.currentTimeMillis();
+            processFolder(storageSystem, folderPath);
+            long endTime = System.currentTimeMillis();
+            System.out.println("\nTraitement terminé en " + (endTime - startTime) + " ms");            
 
-            // 3. Afficher les statistiques de déduplication
-            chunkStorageSystem.printChunkDetails();
-            DeduplicationStats stats = chunkStorageSystem.calculateDetailedStats();
+            // 3. Afficher les statistiques de déduplication et de compression
+            storageSystem.printChunkDetails();
+            DeduplicationStats stats = storageSystem.calculateDetailedStats();
             System.out.println(stats.toString());
+            storageSystem.printCompressionStats();
 
             // 4. Afficher les fichiers disponibles pour reconstruction
-            System.out.println("\nListe des fichiers disponibles pour reconstruction :");
             reconstructor.listAvailableFiles();
 
             // 5. Reconstruire un fichier spécifique
@@ -70,5 +73,4 @@ public class CompressFile {
             throw new RuntimeException(e);
         }
     }
-
 }
