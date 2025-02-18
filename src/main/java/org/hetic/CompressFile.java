@@ -1,71 +1,63 @@
 package org.hetic;
 
-import org.rabinfingerprint.fingerprint.RabinFingerprintLong;
-import org.rabinfingerprint.polynomial.Polynomial;
+import org.hetic.models.DeduplicationStats;
 
-import java.io.*;
-import java.security.MessageDigest;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
 import java.util.List;
 
 public class CompressFile {
-    private static final Polynomial POLYNOMIAL = Polynomial.createFromLong(0x3DA3358B4DC173L); // Polynome optimisé
-    private static final long MASK = (1 << 12) - 1;  // Seuil de coupure (4 Ko)
-    private static final int MAX_CHUNK_SIZE = 20480; // 20 KB max
+    private static final ContentDefinedChunking chunker = new ContentDefinedChunking();
 
-    public static List<byte[]> chunkFile(String filePath) throws IOException {
-        List<byte[]> chunks = new ArrayList<>();
-        File file = new File(filePath);
-        try (InputStream inputStream = new FileInputStream(file)) {
-            RabinFingerprintLong rabin = new RabinFingerprintLong(POLYNOMIAL);
-            ByteArrayOutputStream chunkBuffer = new ByteArrayOutputStream();
-            byte[] buffer = new byte[1];  // On lit 1 octet à la fois
+    public static void main(String[] args) {
+        try {
+            // Initialiser le système de déduplication avec PostgreSQL
+            SQLChunkStorageSystem chunkStorageSystem = new SQLChunkStorageSystem();
 
-            while (inputStream.read(buffer) != -1) {
-                chunkBuffer.write(buffer);  // Ajouter l’octet au chunk en cours
-                rabin.pushByte(buffer[0]);  // Mettre à jour l’empreinte
+            // Dossier à analyser
+            String folderPath = "data-files";
+            processFolder(chunkStorageSystem, folderPath);
 
-                // Détection d’un point de coupure si l'empreinte respecte le masque
-                if ((rabin.getFingerprintLong() & MASK) == 0) {
-                    chunks.add(chunkBuffer.toByteArray());
-                    chunkBuffer.reset();
-                    rabin = new RabinFingerprintLong(POLYNOMIAL);  // Réinitialiser l’empreinte
-                } else if (chunkBuffer.size() >= MAX_CHUNK_SIZE) {
-                    chunks.add(chunkBuffer.toByteArray());
-                    chunkBuffer.reset();
-                    rabin = new RabinFingerprintLong(POLYNOMIAL);
-                }
+            chunkStorageSystem.printChunkDetails();
+
+            // Afficher les statistiques
+            DeduplicationStats stats = chunkStorageSystem.calculateDetailedStats();
+            System.out.println(stats.toString());
+        } catch (Exception e) {
+            System.err.println("Erreur inattendue : " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    private static void processFolder(SQLChunkStorageSystem chunkStorageSystem, String folderPath) {
+        try {
+            Files.walk(Paths.get(folderPath))
+                .filter(Files::isRegularFile)
+                .forEach(file -> processFile(chunkStorageSystem, file));
+        } catch (IOException e) {
+            System.err.println("Erreur lors du parcours du dossier : " + e.getMessage());
+        }
+    }
+
+    private static void processFile(SQLChunkStorageSystem chunkStorageSystem, Path filePath) {
+        try {
+            List<byte[]> chunks = chunker.chunkFile(String.valueOf(filePath));
+            String fileName = filePath.getFileName().toString();
+
+            for (int i = 0; i < chunks.size(); i++) {
+                chunkStorageSystem.addChunk(chunks.get(i), fileName, i);
             }
 
-            // Ajouter le dernier chunk s'il reste des données
-            if (chunkBuffer.size() > 0) {
-                chunks.add(chunkBuffer.toByteArray());
-            }
-        }
-        return chunks;
-    }
+            System.out.println("Traitement terminé pour : " + fileName);
 
-    public static String hashChunk(byte[] chunk) throws NoSuchAlgorithmException {
-        MessageDigest digest = MessageDigest.getInstance("SHA-256");
-        byte[] hash = digest.digest(chunk);
-        StringBuilder hexString = new StringBuilder();
-        for (byte b : hash) {
-            hexString.append(String.format("%02x", b));
-        }
-        return hexString.toString();
-    }
-
-    public static void main(String[] args) throws IOException, NoSuchAlgorithmException {
-        String filePath = args[0];
-
-        List<byte[]> chunks = chunkFile(filePath);
-        System.out.println("Nombre de chunks : " + chunks.size());
-
-        int i = 1;
-        for (byte[] chunk : chunks) {
-            System.out.println("Chunk " + i + " - Hash: " + hashChunk(chunk));
-            i++;
+        } catch (IOException e) {
+            System.err.println("Erreur lors du traitement du fichier " + filePath + " : " + e.getMessage());
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
         }
     }
+
 }

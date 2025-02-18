@@ -2,16 +2,19 @@ package org.hetic;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import org.hetic.models.DeduplicationStats;
+
 import java.sql.*;
 import java.nio.file.Paths;
 import java.security.NoSuchAlgorithmException;
 
-public class SQLDeduplicationSystem extends DeduplicationSystem {
+import static org.hetic.ChunkStorageUtils.hashChunk;
+
+public class SQLChunkStorageSystem {
     private final HikariDataSource dataSource;
     private static final String STORAGE_BASE_PATH = "/storage";
 
-    public SQLDeduplicationSystem(String algorithmName) throws NoSuchAlgorithmException {
-        super(algorithmName);
+    public SQLChunkStorageSystem() {
         this.dataSource = setupDataSource();
         initializeDatabase();
         resetDatabase();
@@ -71,11 +74,8 @@ public class SQLDeduplicationSystem extends DeduplicationSystem {
         return Paths.get(STORAGE_BASE_PATH, hash).toString();
     }
 
-    @Override
-    public ChunkMetadata addChunk(byte[] chunk, String location) {
-        String hash = calculateHash(chunk);
-        String filename = location.substring(0, location.lastIndexOf("_chunk_"));
-        int chunkNumber = Integer.parseInt(location.substring(location.lastIndexOf("_") + 1));
+    public void addChunk(byte[] chunk, String filename, int chunkNumber) throws NoSuchAlgorithmException {
+        String hash = hashChunk(chunk);
         String storagePath = generateStoragePath(hash);
         
         try (Connection conn = dataSource.getConnection()) {
@@ -113,7 +113,6 @@ public class SQLDeduplicationSystem extends DeduplicationSystem {
                 }
 
                 conn.commit();
-                return new ChunkMetadata(hash, chunk.length, storagePath);
             } catch (SQLException e) {
                 conn.rollback();
                 throw e;

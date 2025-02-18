@@ -1,4 +1,4 @@
-package org.hetic;
+package org.hetic.models;
 
 public record DeduplicationStats(
     long totalChunks,

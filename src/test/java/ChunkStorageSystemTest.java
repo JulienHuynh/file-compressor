@@ -1,47 +1,44 @@
+import org.hetic.models.ChunkMetadata;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
-import org.hetic.DeduplicationSystem;
-import java.util.Optional;
-import org.hetic.DeduplicationSystem.ChunkMetadata;
+import org.hetic.ChunkStorageUtils;
 
-public class DeduplicationSystemTest {
-    private DeduplicationSystem deduplicationSystem;
+import java.security.NoSuchAlgorithmException;
+import java.util.Optional;
+
+public class ChunkStorageSystemTest {
+    private ChunkStorageUtils chunkStorageUtils;
 
     @BeforeEach
-    void setUp() throws Exception {
-        deduplicationSystem = new DeduplicationSystem("SHA-256");
+    void setUp() {
+        chunkStorageUtils = new ChunkStorageUtils();
     }
 
     @Test
-    void testDuplicateDetection() {
+    void testDuplicateDetection() throws NoSuchAlgorithmException {
         // Simuler deux chunks identiques
         byte[] chunk1 = "Test content".getBytes();
         byte[] chunk2 = "Test content".getBytes();
         byte[] chunk3 = "Different content".getBytes();
 
         // Ajouter le premier chunk
-        ChunkMetadata metadata1 = deduplicationSystem.addChunk(chunk1, "location1");
+        ChunkMetadata metadata1 = chunkStorageUtils.addChunk(chunk1, "location1");
         assertNotNull(metadata1);
         assertEquals(1, metadata1.getReferenceCount());
 
         // Vérifier la détection du doublon
-        Optional<ChunkMetadata> duplicate = deduplicationSystem.findDuplicate(chunk2);
+        Optional<ChunkMetadata> duplicate = chunkStorageUtils.findDuplicate(chunk2);
         assertTrue(duplicate.isPresent());
         assertEquals(metadata1.getHash(), duplicate.get().getHash());
 
         // Ajouter le doublon et vérifier l'incrémentation du compteur
-        ChunkMetadata metadata2 = deduplicationSystem.addChunk(chunk2, "location2");
+        ChunkMetadata metadata2 = chunkStorageUtils.addChunk(chunk2, "location2");
         assertEquals(2, metadata2.getReferenceCount());
         assertEquals(metadata1.getHash(), metadata2.getHash());
 
         // Vérifier qu'un contenu différent n'est pas détecté comme doublon
-        Optional<ChunkMetadata> nonDuplicate = deduplicationSystem.findDuplicate(chunk3);
+        Optional<ChunkMetadata> nonDuplicate = chunkStorageUtils.findDuplicate(chunk3);
         assertFalse(nonDuplicate.isPresent());
-
-        // Vérifier les statistiques
-        assertEquals(1, deduplicationSystem.getUniqueChunksCount());
-        assertEquals(1, deduplicationSystem.getDuplicateChunksCount());
-        assertEquals(chunk1.length, deduplicationSystem.getTotalDuplicateSize());
     }
 }
