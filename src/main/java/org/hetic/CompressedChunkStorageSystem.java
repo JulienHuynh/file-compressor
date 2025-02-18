@@ -26,9 +26,9 @@ public class CompressedChunkStorageSystem extends SQLChunkStorageSystem {
         Files.createDirectories(path.getParent());
         Files.write(path, compressedData);
         
-        double compressionRatio = (double) compressedData.length / chunk.length * 100;
-        System.out.printf("Chunk compressé : %s (ratio: %.2f%%)\n", 
-            path.toAbsolutePath(), compressionRatio);
+        double compressionRatio = (1.0 - (double) compressedData.length / chunk.length) * 100;
+        // System.out.printf("Chunk compressé : %s (réduction: %.2f%%)%n", 
+        //     path.toAbsolutePath(), compressionRatio);
     }
     
     @Override

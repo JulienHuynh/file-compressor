@@ -5,7 +5,7 @@ import java.nio.ByteBuffer;
 import com.github.luben.zstd.Zstd;
 
 public class ChunkCompressor {
-    private static final int COMPRESSION_LEVEL = 3; // Entre 1 et 22
+    private static final int COMPRESSION_LEVEL = 22; // Entre 1 et 22
 
     public byte[] compressChunk(byte[] chunk) {
         // Estimation de la taille maximale compressée

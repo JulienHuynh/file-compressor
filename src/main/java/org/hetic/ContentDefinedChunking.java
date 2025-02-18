@@ -11,8 +11,8 @@ public class ContentDefinedChunking {
     private final Polynomial POLYNOMIAL = Polynomial.createFromLong(0x3DA3358B4DC173L); // Polynome optimisé
 
     public List<byte[]> chunkFile(String filePath) throws IOException {
-        final long MASK = 4095; // 4095 = 2^12 - 1
-        final int MAX_CHUNK_SIZE = 20480; // 20 Ko
+        final long MASK = (2 << 12) - 1;  //16383
+        final int MAX_CHUNK_SIZE = 20480; // 65536
 
         List<byte[]> chunks = new ArrayList<>();
         File file = new File(filePath);
