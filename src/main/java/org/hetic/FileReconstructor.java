@@ -55,7 +55,7 @@ public class FileReconstructor {
 
     private List<ChunkInfo> getFileChunks(Connection conn, String filename) throws SQLException {
         List<ChunkInfo> chunks = new ArrayList<>();
-        
+
         try (PreparedStatement stmt = conn.prepareStatement("""
             SELECT fc.chunk_number, c.chunk_hash, c.file_path
             FROM file_chunks fc
@@ -64,7 +64,7 @@ public class FileReconstructor {
             ORDER BY fc.chunk_number
         """)) {
             stmt.setString(1, filename);
-            
+
             ResultSet rs = stmt.executeQuery();
             while (rs.next()) {
                 chunks.add(new ChunkInfo(
@@ -74,15 +74,15 @@ public class FileReconstructor {
                 ));
             }
         }
-        
+
         return chunks;
     }
-    
+
     public void reconstructFile(String filename) {
         try (Connection conn = deduplicationSystem.getConnection()) {
             // 1. Récupérer tous les chunks pour ce fichier, ordonnés par numéro
             List<ChunkInfo> chunks = getFileChunks(conn, filename);
-            
+
             if (chunks.isEmpty()) {
                 System.out.println("Recherche des chunks pour : " + filename);
                 throw new IllegalArgumentException("Fichier non trouvé: " + filename);
@@ -91,30 +91,29 @@ public class FileReconstructor {
             // 2. Créer le fichier de sortie
             Path outputPath = Paths.get(OUTPUT_DIR, "reconstructed_" + filename);
             try (OutputStream outputStream = Files.newOutputStream(outputPath)) {
-                
+
                 System.out.println("Reconstruction en cours...");
                 System.out.println("Nombre de chunks trouvés : " + chunks.size());
-                
+
                 // 3. Pour chaque chunk
                 for (ChunkInfo chunk : chunks) {
-                    System.out.printf("Traitement du chunk %d depuis %s%n", 
-                        chunk.number(), chunk.storagePath);
-                    
+//                    System.out.printf("Traitement du chunk %d depuis %s%n",
+//                        chunk.number(), chunk.storagePath);
                     // 4. Lire le chunk depuis le stockage
                     Path chunkPath = Paths.get(chunk.storagePath);
                     if (!Files.exists(chunkPath)) {
                         throw new IOException("Chunk introuvable: " + chunkPath);
                     }
-                    
+
                     byte[] chunkData = Files.readAllBytes(chunkPath);
-                    
+
                     // 5. Écrire le chunk dans le fichier de sortie
                     outputStream.write(chunkData);
                 }
             }
-            
+
             System.out.println("Fichier reconstruit avec succès: " + outputPath);
-            
+
         } catch (SQLException | IOException e) {
             throw new RuntimeException("Erreur lors de la reconstruction du fichier: " + filename, e);
         }

@@ -15,11 +15,12 @@ public class ContentDefinedChunking {
     public List<byte[]> chunkFile(String filePath) throws IOException {
         long startTime = System.nanoTime();
 
-        final long MASK = (1 << 12) - 1;  // Seuil de coupure (4 Ko)
-        final int MAX_CHUNK_SIZE = 20480; // 20 KB max
+        File file = new File(filePath);
+        long fileSize = file.length();
+
+        ChunkParams params = adjustChunkParams(fileSize);
 
         List<byte[]> chunks = new ArrayList<>();
-        File file = new File(filePath);
         try (InputStream inputStream = new FileInputStream(file)) {
             RabinFingerprintLong rabin = new RabinFingerprintLong(POLYNOMIAL);
             ByteArrayOutputStream chunkBuffer = new ByteArrayOutputStream();
@@ -31,10 +32,12 @@ public class ContentDefinedChunking {
                     chunkBuffer.write(buffer[i]);
                     rabin.pushByte(buffer[i]);
 
-                    if ((rabin.getFingerprintLong() & MASK) == 0 || chunkBuffer.size() >= MAX_CHUNK_SIZE) {
-                        chunks.add(chunkBuffer.toByteArray());
-                        chunkBuffer.reset();
-                        rabin = new RabinFingerprintLong(POLYNOMIAL);
+                    if ((rabin.getFingerprintLong() & params.mask) == 0 || chunkBuffer.size() >= params.maxChunkSize) {
+                        if (chunkBuffer.size() >= params.minChunkSize) {
+                            chunks.add(chunkBuffer.toByteArray());
+                            chunkBuffer.reset();
+                            rabin = new RabinFingerprintLong(POLYNOMIAL);
+                        }
                     }
                 }
             }
@@ -49,5 +52,54 @@ public class ContentDefinedChunking {
         logger.info("File split execution time: " + (endTime - startTime) / 1_000_000 + " ms");
 
         return chunks;
+    }
+
+
+    private ChunkParams adjustChunkParams(long fileSize) {
+        final long BASE_MASK = (1 << 12) - 1; // Masque de base 4 KB
+
+        long mask;
+        int minChunkSize;
+        int maxChunkSize;
+
+        if (fileSize < 10 * 1024) { // < 10 KB
+            mask = BASE_MASK >> 2; // (1 KB)
+            minChunkSize = 512;
+            maxChunkSize = 2048;
+        } else if (fileSize < 100 * 1024) { // < 100 KB
+            mask = BASE_MASK; // (4 KB)
+            minChunkSize = 1024;
+            maxChunkSize = 4096;
+        } else if (fileSize < 1024 * 1024) { // < 1 MB
+            mask = BASE_MASK << 1; // (8 KB)
+            minChunkSize = 2048;
+            maxChunkSize = 8192;
+        } else if (fileSize < 10 * 1024 * 1024) { // < 10 MB
+            mask = BASE_MASK << 2; // (16 KB)
+            minChunkSize = 4096;
+            maxChunkSize = 16384;
+        } else if (fileSize < 100 * 1024 * 1024) { // < 100 MB
+            mask = BASE_MASK << 3; // (32 KB)
+            minChunkSize = 8192;
+            maxChunkSize = 32768;
+        } else { // > 100 MB
+            mask = BASE_MASK << 4; // (64 KB)
+            minChunkSize = 16384;
+            maxChunkSize = 65536;
+        }
+
+        return new ChunkParams(mask, minChunkSize, maxChunkSize);
+    }
+
+    private static class ChunkParams {
+        long mask;
+        int minChunkSize;
+        int maxChunkSize;
+
+        ChunkParams(long mask, int minChunkSize, int maxChunkSize) {
+            this.mask = mask;
+            this.minChunkSize = minChunkSize;
+            this.maxChunkSize = maxChunkSize;
+        }
     }
 }

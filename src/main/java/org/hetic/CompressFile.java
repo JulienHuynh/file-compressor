@@ -24,16 +24,16 @@ public class CompressFile {
             long startTime = System.currentTimeMillis();
             processFolder(storageSystem, folderPath);
             long endTime = System.currentTimeMillis();
-            System.out.println("\nTraitement terminé en " + (endTime - startTime) + " ms"); 
+            System.out.println("\nTraitement terminé en " + (endTime - startTime) + " ms");
 
             // 2.1 Tests de performance de compression
-            // runCompressionBenchmark("data-files");           
+            // runCompressionBenchmark("data-files");
 
             // // 3. Afficher les statistiques de déduplication et de compression
-            //storageSystem.printChunkDetails();
-            // DeduplicationStats stats = storageSystem.calculateDetailedStats();
-            //System.out.println(stats.toString());
-            //storageSystem.printCompressionStats();
+            storageSystem.printChunkDetails();
+            DeduplicationStats stats = storageSystem.calculateDetailedStats();
+            System.out.println(stats.toString());
+            storageSystem.printCompressionStats();
 
             // // 4. Afficher les fichiers disponibles pour reconstruction
             reconstructor.listAvailableFiles();
@@ -80,7 +80,7 @@ public class CompressFile {
     private static void runCompressionBenchmark(String folderPath) {
         System.out.println("\nDémarrage des tests de performance de compression...\n");
         CompressionBenchmark benchmark = new CompressionBenchmark();
-        
+
         try {
             Files.walk(Paths.get(folderPath))
                 .filter(Files::isRegularFile)
