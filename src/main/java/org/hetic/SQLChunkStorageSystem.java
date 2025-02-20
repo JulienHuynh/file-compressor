@@ -15,10 +15,20 @@ import java.security.NoSuchAlgorithmException;
 import static org.hetic.ChunkStorageUtils.hashChunk;
 
 public class SQLChunkStorageSystem {
+    protected static final String STORAGE_BASE_PATH = "storage";
     private final HikariDataSource dataSource;
-    private static final String STORAGE_BASE_PATH = "/storage";
 
     public SQLChunkStorageSystem() {
+
+        ch.qos.logback.classic.Logger root = (ch.qos.logback.classic.Logger) 
+            org.slf4j.LoggerFactory.getLogger(ch.qos.logback.classic.Logger.ROOT_LOGGER_NAME);
+        root.setLevel(ch.qos.logback.classic.Level.INFO);
+        
+        // Configuration spécifique pour HikariCP
+        ch.qos.logback.classic.Logger hikariLogger = (ch.qos.logback.classic.Logger) 
+            org.slf4j.LoggerFactory.getLogger("com.zaxxer.hikari");
+        hikariLogger.setLevel(ch.qos.logback.classic.Level.ERROR);
+
         this.dataSource = setupDataSource();
         initializeDatabase();
         resetDatabase();
@@ -33,6 +43,7 @@ public class SQLChunkStorageSystem {
         config.setMaximumPoolSize(10);
         return new HikariDataSource(config);
     }
+
     public Connection getConnection() throws SQLException {
         return dataSource.getConnection();
     }
@@ -41,7 +52,6 @@ public class SQLChunkStorageSystem {
         try (Connection conn = dataSource.getConnection();
              Statement stmt = conn.createStatement()) {
             
-            // Table pour stocker les chunks uniques
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS chunks (
                     chunk_hash VARCHAR(64) PRIMARY KEY,
@@ -50,7 +60,6 @@ public class SQLChunkStorageSystem {
                 )
             """);
             
-            // Table pour la relation fichiers-chunks
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS file_chunks (
                     id SERIAL PRIMARY KEY,
@@ -69,7 +78,6 @@ public class SQLChunkStorageSystem {
     private void resetDatabase() {
         try (Connection conn = dataSource.getConnection();
              Statement stmt = conn.createStatement()) {
-            // Vider les tables dans le bon ordre (à cause des clés étrangères)
             stmt.execute("TRUNCATE TABLE file_chunks CASCADE");
             stmt.execute("TRUNCATE TABLE chunks CASCADE");
             System.out.println("Base de données réinitialisée pour une nouvelle analyse.");
@@ -78,7 +86,7 @@ public class SQLChunkStorageSystem {
         }
     }
 
-   private String generateStoragePath(String hash) {
+    protected String generateStoragePath(String hash) {
         return Paths.get(STORAGE_BASE_PATH, hash).toString();
     }
 
@@ -86,7 +94,6 @@ public class SQLChunkStorageSystem {
         try {
             Path storagePath = Paths.get(STORAGE_BASE_PATH);
             if (Files.exists(storagePath)) {
-                // Nettoyer le dossier de stockage existant
                 Files.walk(storagePath)
                         .sorted((a, b) -> b.compareTo(a))
                         .forEach(path -> {
@@ -104,11 +111,15 @@ public class SQLChunkStorageSystem {
         }
     }
 
-    private void saveChunkToStorage(byte[] chunk, String storagePath) throws IOException {
+    protected void saveChunkToStorage(byte[] chunk, String storagePath) throws IOException {
         Path path = Paths.get(storagePath);
         Files.createDirectories(path.getParent());
         Files.write(path, chunk);
         System.out.println("Chunk sauvegardé : " + path.toAbsolutePath());
+    }
+
+    protected byte[] readChunkFromStorage(String storagePath) throws IOException {
+        return Files.readAllBytes(Paths.get(storagePath));
     }
 
     public ChunkMetadata addChunk(byte[] chunk, String filename, int chunkNumber) throws NoSuchAlgorithmException {
@@ -118,7 +129,6 @@ public class SQLChunkStorageSystem {
         try (Connection conn = dataSource.getConnection()) {
             conn.setAutoCommit(false);
             try {
-                // Vérifier si le chunk existe déjà
                 boolean chunkExists = false;
                 try (PreparedStatement checkStmt = conn.prepareStatement(
                     "SELECT 1 FROM chunks WHERE chunk_hash = ?")) {
@@ -127,7 +137,6 @@ public class SQLChunkStorageSystem {
                     chunkExists = rs.next();
                 }
 
-                // Si le chunk n'existe pas, l'insérer avec son chemin de stockage
                 if (!chunkExists) {
                     try (PreparedStatement insertChunkStmt = conn.prepareStatement(
                         "INSERT INTO chunks (chunk_hash, file_path) VALUES (?, ?)")) {
@@ -135,7 +144,6 @@ public class SQLChunkStorageSystem {
                         insertChunkStmt.setString(2, storagePath);
                         insertChunkStmt.executeUpdate();
 
-                        // Sauvegarder physiquement le chunk
                         try {
                             saveChunkToStorage(chunk, storagePath);
                         } catch (IOException e) {
@@ -144,7 +152,6 @@ public class SQLChunkStorageSystem {
                     }
                 }
 
-                // Ajouter l'entrée dans file_chunks
                 try (PreparedStatement insertFileChunkStmt = conn.prepareStatement(
                     "INSERT INTO file_chunks (filename, chunk_hash, chunk_number) VALUES (?, ?, ?)")) {
                     insertFileChunkStmt.setString(1, filename);
@@ -166,7 +173,6 @@ public class SQLChunkStorageSystem {
         }
     }
 
-    // Méthode pour afficher les détails incluant le chemin de stockage
     public void printChunkDetails() {
         try (Connection conn = dataSource.getConnection();
              Statement stmt = conn.createStatement()) {
@@ -195,6 +201,7 @@ public class SQLChunkStorageSystem {
             throw new RuntimeException("Erreur lors de l'affichage des détails des chunks", e);
         }
     }
+
     public DeduplicationStats calculateDetailedStats() {
         try (Connection conn = dataSource.getConnection();
              Statement stmt = conn.createStatement()) {

@@ -53,7 +53,3 @@ Métriques mesurées :
 ### 🗄️ **Base de données**
 
 - **PostgreSQL** ou **SQLite** (via JDBC avec HikariCP pour la gestion de connexion).
-
-### 🌐 **Framework API (optionnel)**
-
-- **Spring Boot** ou **Quarkus** pour tester avec une API REST.
