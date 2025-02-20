@@ -6,34 +6,36 @@ import org.rabinfingerprint.polynomial.Polynomial;
 import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Logger;
 
 public class ContentDefinedChunking {
     private final Polynomial POLYNOMIAL = Polynomial.createFromLong(0x3DA3358B4DC173L); // Polynome optimisé
+    private static final Logger logger = Logger.getLogger(ContentDefinedChunking.class.getName());
 
     public List<byte[]> chunkFile(String filePath) throws IOException {
-        final long MASK = (2 << 12) - 1;  //16383
-        final int MAX_CHUNK_SIZE = 20480; // 65536
+        long startTime = System.nanoTime();
+
+        final long MASK = (1 << 12) - 1;  // Seuil de coupure (4 Ko)
+        final int MAX_CHUNK_SIZE = 20480; // 20 KB max
 
         List<byte[]> chunks = new ArrayList<>();
         File file = new File(filePath);
         try (InputStream inputStream = new FileInputStream(file)) {
             RabinFingerprintLong rabin = new RabinFingerprintLong(POLYNOMIAL);
             ByteArrayOutputStream chunkBuffer = new ByteArrayOutputStream();
-            byte[] buffer = new byte[1];  // On lit 1 octet à la fois
+            byte[] buffer = new byte[4096];
+            int bytesRead;
 
-            while (inputStream.read(buffer) != -1) {
-                chunkBuffer.write(buffer);  // Ajouter l’octet au chunk en cours
-                rabin.pushByte(buffer[0]);  // Mettre à jour l’empreinte
+            while ((bytesRead = inputStream.read(buffer)) != -1) {
+                for (int i = 0; i < bytesRead; i++) {
+                    chunkBuffer.write(buffer[i]);
+                    rabin.pushByte(buffer[i]);
 
-                // Détection d’un point de coupure si l'empreinte respecte le masque
-                if ((rabin.getFingerprintLong() & MASK) == 0) {
-                    chunks.add(chunkBuffer.toByteArray());
-                    chunkBuffer.reset();
-                    rabin = new RabinFingerprintLong(POLYNOMIAL);  // Réinitialiser l’empreinte
-                } else if (chunkBuffer.size() >= MAX_CHUNK_SIZE) {
-                    chunks.add(chunkBuffer.toByteArray());
-                    chunkBuffer.reset();
-                    rabin = new RabinFingerprintLong(POLYNOMIAL);
+                    if ((rabin.getFingerprintLong() & MASK) == 0 || chunkBuffer.size() >= MAX_CHUNK_SIZE) {
+                        chunks.add(chunkBuffer.toByteArray());
+                        chunkBuffer.reset();
+                        rabin = new RabinFingerprintLong(POLYNOMIAL);
+                    }
                 }
             }
 
@@ -42,6 +44,10 @@ public class ContentDefinedChunking {
                 chunks.add(chunkBuffer.toByteArray());
             }
         }
+
+        long endTime = System.nanoTime();
+        logger.info("File split execution time: " + (endTime - startTime) / 1_000_000 + " ms");
+
         return chunks;
     }
 }
