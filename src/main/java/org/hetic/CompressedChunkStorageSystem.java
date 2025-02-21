@@ -80,13 +80,13 @@ public class CompressedChunkStorageSystem extends SQLChunkStorageSystem {
                 System.out.println("Taille totale compressée (bytes): " + totalCompressedSize);
                 double avgCompressionRatio = (double) totalCompressedSize / totalOriginalSize * 100;
 
-                System.out.println("\nStatistiques de compression :");
+                System.out.println("\nStatistiques de compression par chunks:");
                 System.out.println("----------------------------------------");
                 System.out.printf("Nombre total de chunks : %d%n", chunkCount);
                 System.out.printf("Taille totale originale : %.2f KB%n", totalOriginalSize / 1024.0);
                 System.out.printf("Taille totale compressée : %.2f KB%n", totalCompressedSize / 1024.0);
                 System.out.printf("Ratio de compression moyen : %.2f%%%n", avgCompressionRatio);
-                System.out.printf("Espace économisé : %.2f KB%n", (totalOriginalSize - totalCompressedSize) / 1024.0);
+                System.out.printf("Taille finale : %.2f KB%n", (totalOriginalSize - totalCompressedSize) / 1024.0);
                 System.out.println("----------------------------------------\n");
             }
         } catch (IOException e) {

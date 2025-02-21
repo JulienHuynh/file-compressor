@@ -16,7 +16,7 @@ public record CompressionStats(
             Taille originale : %.2f MB
             Taille compressée : %.2f MB
             Ratio de compression : %.2f%%
-            Espace économisé : %.2f MB
+            Taille finale : %.2f MB
             ----------------------------------------
             """,
             chunkCount,

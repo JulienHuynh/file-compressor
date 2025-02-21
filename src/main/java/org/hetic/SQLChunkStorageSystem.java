@@ -20,12 +20,12 @@ public class SQLChunkStorageSystem {
 
     public SQLChunkStorageSystem() {
 
-        ch.qos.logback.classic.Logger root = (ch.qos.logback.classic.Logger)
+        ch.qos.logback.classic.Logger root = (ch.qos.logback.classic.Logger) 
             org.slf4j.LoggerFactory.getLogger(ch.qos.logback.classic.Logger.ROOT_LOGGER_NAME);
         root.setLevel(ch.qos.logback.classic.Level.INFO);
-
+        
         // Configuration spécifique pour HikariCP
-        ch.qos.logback.classic.Logger hikariLogger = (ch.qos.logback.classic.Logger)
+        ch.qos.logback.classic.Logger hikariLogger = (ch.qos.logback.classic.Logger) 
             org.slf4j.LoggerFactory.getLogger("com.zaxxer.hikari");
         hikariLogger.setLevel(ch.qos.logback.classic.Level.ERROR);
 
@@ -51,7 +51,7 @@ public class SQLChunkStorageSystem {
     private void initializeDatabase() {
         try (Connection conn = dataSource.getConnection();
              Statement stmt = conn.createStatement()) {
-
+            
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS chunks (
                     chunk_hash VARCHAR(64) PRIMARY KEY,
@@ -59,7 +59,7 @@ public class SQLChunkStorageSystem {
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """);
-
+            
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS file_chunks (
                     id SERIAL PRIMARY KEY,
@@ -69,7 +69,7 @@ public class SQLChunkStorageSystem {
                     UNIQUE(filename, chunk_number)
                 )
             """);
-
+            
         } catch (SQLException e) {
             throw new RuntimeException("Erreur d'initialisation de la base de données", e);
         }
@@ -125,7 +125,7 @@ public class SQLChunkStorageSystem {
     public ChunkMetadata addChunk(byte[] chunk, String filename, int chunkNumber) throws NoSuchAlgorithmException {
         String hash = hashChunk(chunk);
         String storagePath = generateStoragePath(hash);
-
+        
         try (Connection conn = dataSource.getConnection()) {
             conn.setAutoCommit(false);
             try {
@@ -176,7 +176,7 @@ public class SQLChunkStorageSystem {
     public void printChunkDetails() {
         try (Connection conn = dataSource.getConnection();
              Statement stmt = conn.createStatement()) {
-
+            
             ResultSet rs = stmt.executeQuery("""
                 SELECT c.chunk_hash, 
                        c.file_path,
@@ -189,23 +189,22 @@ public class SQLChunkStorageSystem {
 
             System.out.println("\nDétails des chunks en base de données :");
             System.out.println("----------------------------------------");
-//            while (rs.next()) {
-//                System.out.printf("Hash: %-10s | Stockage: %-40s | Références: %d%n",
-//                    rs.getString("chunk_hash").substring(0, 8) + "...",
-//                    rs.getString("file_path"),
-//                    rs.getInt("reference_count")
-//                );
-//            }
-//            System.out.println("----------------------------------------\n");
+            // while (rs.next()) {
+            //     System.out.printf("Hash: %-10s | Stockage: %-40s | Références: %d%n",
+            //         rs.getString("chunk_hash").substring(0, 8) + "...",
+            //         rs.getString("file_path"),
+            //         rs.getInt("reference_count")
+            //     );
+            // }
+            System.out.println("----------------------------------------\n");
         } catch (SQLException e) {
             throw new RuntimeException("Erreur lors de l'affichage des détails des chunks", e);
         }
     }
-
     public DeduplicationStats calculateDetailedStats() {
         try (Connection conn = dataSource.getConnection();
              Statement stmt = conn.createStatement()) {
-
+            
             ResultSet rs = stmt.executeQuery("""
                 WITH chunk_stats AS (
                     SELECT c.chunk_hash,
@@ -232,19 +231,22 @@ public class SQLChunkStorageSystem {
                     END as deduplication_ratio
                 FROM summary
             """);
-
+    
             if (rs.next()) {
+                long totalChunks = rs.getLong("total_chunks");
+                long uniqueChunks = rs.getLong("unique_chunks");
+                long duplicateChunks = rs.getLong("duplicate_chunks");
+    
                 return new DeduplicationStats(
-                    rs.getLong("total_chunks"),
-                    rs.getLong("unique_chunks"),
-                    rs.getLong("duplicate_chunks"),
-                    rs.getLong("total_chunks"),
-                    rs.getLong("total_chunks") - rs.getLong("unique_chunks"),
+                    totalChunks,
+                    uniqueChunks,
+                    duplicateChunks,
                     rs.getDouble("deduplication_ratio")
                 );
             }
-
-            return new DeduplicationStats(0, 0, 0, 0, 0, 0.0);
+    
+            // Aucun résultat trouvé
+            return new DeduplicationStats(0, 0, 0, 0.0);
         } catch (SQLException e) {
             throw new RuntimeException("Erreur lors du calcul des statistiques", e);
         }
