@@ -102,3 +102,12 @@ Pour 5 copies du même fichier PDF :
 - Java 17+
 - PostgreSQL
 - Espace disque pour /storage/
+
+## ⚙️ Arguments
+(Compiler le projet en JAR avant)
+
+Pour faire un Benchmark de comparaison de compression globale et par chunk :
+- java -cp out org.hetic.CompressFile compare filenameToReconstruct.txt
+
+Pour avoir uniquement les statistiques de duplications de chunk et de gain d'espace : 
+- java -cp out org.hetic.CompressFile duplicationStats filenameToReconstruct.txt
